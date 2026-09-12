@@ -1,4 +1,6 @@
+import { useEffect, useState } from 'react'
 import portrait from './assets/john-portrait.jpg'
+import { supabase } from './supabaseClient'
 
 const styles = {
   page: {
@@ -156,6 +158,75 @@ const statusColor = {
   down: '#a4342a',
 }
 
+const UPS_STALE_MS = 10 * 60 * 1000
+
+function upsStatusInfo(row) {
+  if (!row) {
+    return { label: 'Ukjent', status: 'warn', detail: 'Ingen data mottatt ennå.' }
+  }
+
+  const age = Date.now() - new Date(row.updated_at).getTime()
+  const metrics = [
+    row.battery_charge != null ? `${row.battery_charge}% batteri` : null,
+    row.load_percent != null ? `${row.load_percent}% last` : null,
+  ].filter(Boolean).join(', ')
+
+  if (age > UPS_STALE_MS) {
+    return {
+      label: 'Frakoblet',
+      status: 'down',
+      detail: `Ingen oppdatering siden ${new Date(row.updated_at).toLocaleString('no-NO')}.`,
+    }
+  }
+  if (row.status?.includes('OB')) {
+    return { label: 'På batteri', status: 'warn', detail: metrics }
+  }
+  if (row.status?.includes('OL')) {
+    return { label: 'Oppe', status: 'ok', detail: metrics }
+  }
+  return { label: row.status ?? 'Ukjent', status: 'warn', detail: metrics }
+}
+
+function UpsServiceCard() {
+  const [row, setRow] = useState(null)
+  const [loaded, setLoaded] = useState(false)
+
+  useEffect(() => {
+    let active = true
+    supabase
+      .from('device_status')
+      .select('*')
+      .eq('device_id', 'ups')
+      .maybeSingle()
+      .then(({ data }) => {
+        if (active) {
+          setRow(data)
+          setLoaded(true)
+        }
+      })
+    return () => {
+      active = false
+    }
+  }, [])
+
+  const info = loaded ? upsStatusInfo(row) : { label: 'Laster …', status: 'warn', detail: '' }
+
+  return (
+    <div style={styles.serviceCard}>
+      <div style={styles.serviceHead}>
+        <span style={styles.serviceTitle}>UPS (strøm)</span>
+        <span style={styles.statusDot()}>
+          <span style={styles.dot(statusColor[info.status])} />
+          {info.label}
+        </span>
+      </div>
+      <p style={{ color: 'var(--text-muted)', margin: 0 }}>
+        APC Back-UPS BX950MI.{info.detail ? ` ${info.detail}` : ''}
+      </p>
+    </div>
+  )
+}
+
 export default function App() {
   return (
     <div style={styles.page}>
@@ -192,6 +263,7 @@ export default function App() {
               <p style={{ color: 'var(--text-muted)', margin: 0 }}>{service.description}</p>
             </div>
           ))}
+          <UpsServiceCard />
         </div>
       </section>
 
