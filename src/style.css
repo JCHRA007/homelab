@@ -1,0 +1,14 @@
+body {
+  margin: 0;
+  background: #fafafa;
+  color: #222;
+}
+
+input, button {
+  font-size: 14px;
+  padding: 8px;
+}
+
+button {
+  cursor: pointer;
+}
