@@ -158,7 +158,7 @@ const statusColor = {
   down: '#a4342a',
 }
 
-const UPS_STALE_MS = 10 * 60 * 1000
+const UPS_STALE_MS = 90 * 60 * 1000
 
 function upsStatusInfo(row) {
   if (!row) {
@@ -187,25 +187,34 @@ function upsStatusInfo(row) {
   return { label: row.status ?? 'Ukjent', status: 'warn', detail: metrics }
 }
 
+const UPS_REFRESH_MS = 60 * 60 * 1000
+
 function UpsServiceCard() {
   const [row, setRow] = useState(null)
   const [loaded, setLoaded] = useState(false)
 
   useEffect(() => {
     let active = true
-    supabase
-      .from('device_status')
-      .select('*')
-      .eq('device_id', 'ups')
-      .maybeSingle()
-      .then(({ data }) => {
-        if (active) {
-          setRow(data)
-          setLoaded(true)
-        }
-      })
+
+    const fetchStatus = () => {
+      supabase
+        .from('device_status')
+        .select('*')
+        .eq('device_id', 'ups')
+        .maybeSingle()
+        .then(({ data }) => {
+          if (active) {
+            setRow(data)
+            setLoaded(true)
+          }
+        })
+    }
+
+    fetchStatus()
+    const interval = setInterval(fetchStatus, UPS_REFRESH_MS)
     return () => {
       active = false
+      clearInterval(interval)
     }
   }, [])
 
