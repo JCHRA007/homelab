@@ -1,3 +1,5 @@
+import portrait from './assets/john-portrait.jpg'
+
 const styles = {
   page: {
     maxWidth: 'var(--max-width)',
@@ -11,10 +13,13 @@ const styles = {
     padding: '28px 0',
     borderBottom: '1px solid var(--border)',
   },
+  brand: {
+    fontFamily: 'var(--font-heading)',
+    fontSize: 19,
+  },
   nav: {
     display: 'flex',
     gap: 28,
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif',
     fontSize: 15,
   },
   navLink: {
@@ -22,141 +27,195 @@ const styles = {
     textDecoration: 'none',
   },
   hero: {
-    padding: '96px 0 80px',
+    padding: '88px 0 76px',
     borderBottom: '1px solid var(--border)',
   },
+  eyebrow: {
+    fontSize: 14,
+    color: 'var(--text-muted)',
+    marginBottom: 12,
+  },
   heroTitle: {
-    fontSize: 44,
-    maxWidth: 640,
+    fontSize: 42,
+    maxWidth: 620,
     marginBottom: 20,
   },
   heroText: {
-    fontSize: 18,
+    fontSize: 17,
     color: 'var(--text-muted)',
     maxWidth: 480,
     marginBottom: 32,
   },
   button: {
     display: 'inline-block',
-    padding: '12px 24px',
-    border: '1px solid var(--text)',
-    background: 'transparent',
-    color: 'var(--text)',
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif',
+    padding: '13px 24px',
+    border: 'none',
+    borderRadius: 3,
+    background: 'var(--accent)',
+    color: '#fff',
     fontSize: 15,
     textDecoration: 'none',
   },
   section: {
-    padding: '72px 0',
+    padding: '64px 0',
     borderBottom: '1px solid var(--border)',
   },
   sectionLabel: {
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif',
     fontSize: 13,
     letterSpacing: '0.08em',
     textTransform: 'uppercase',
     color: 'var(--text-muted)',
-    marginBottom: 16,
+    marginBottom: 24,
   },
-  featureGrid: {
+  serviceGrid: {
     display: 'grid',
     gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-    gap: 40,
-    marginTop: 32,
+    gap: 20,
   },
-  featureNumber: {
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif',
-    fontSize: 14,
-    color: 'var(--accent)',
+  serviceCard: {
+    border: '1px solid var(--border)',
+    borderRadius: 6,
+    padding: 20,
+    background: '#fff',
+  },
+  serviceHead: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 8,
   },
-  featureTitle: {
-    fontSize: 20,
-    marginBottom: 8,
+  serviceTitle: {
+    fontSize: 17,
+    fontWeight: 600,
+  },
+  statusDot: (color) => ({
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 6,
+    fontSize: 13,
+    color: 'var(--text-muted)',
+  }),
+  dot: (color) => ({
+    width: 8,
+    height: 8,
+    borderRadius: '50%',
+    background: color,
+    display: 'inline-block',
+  }),
+  aboutCard: {
+    display: 'flex',
+    gap: 24,
+    alignItems: 'center',
+    border: '1px solid var(--border)',
+    borderRadius: 6,
+    padding: 24,
+    background: '#fff',
+    flexWrap: 'wrap',
+  },
+  portrait: {
+    width: 72,
+    height: 72,
+    borderRadius: '50%',
+    objectFit: 'cover',
+    border: '1px solid var(--border)',
   },
   aboutText: {
-    maxWidth: 620,
-    fontSize: 17,
+    flex: 1,
+    minWidth: 200,
   },
   footer: {
     padding: '32px 0',
     display: 'flex',
     justifyContent: 'space-between',
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif',
     fontSize: 14,
     color: 'var(--text-muted)',
   },
+}
+
+const services = [
+  {
+    name: 'Supabase',
+    description: 'Selvhostet auth og database for kommende prosjekter.',
+    status: 'ok',
+  },
+  {
+    name: 'Nettverksovervåking',
+    description: 'Placeholder — legg inn din egen tjeneste her.',
+    status: 'ok',
+  },
+  {
+    name: 'Mediaserver',
+    description: 'Placeholder — legg inn din egen tjeneste her.',
+    status: 'ok',
+  },
+]
+
+const statusColor = {
+  ok: '#3d7a4f',
+  warn: '#b8862b',
+  down: '#a4342a',
 }
 
 export default function App() {
   return (
     <div style={styles.page}>
       <header style={styles.header}>
-        <strong>Firmanavn</strong>
+        <span style={styles.brand}>Atkins Homelab</span>
         <nav style={styles.nav}>
-          <a href="#om" style={styles.navLink}>Om oss</a>
           <a href="#tjenester" style={styles.navLink}>Tjenester</a>
-          <a href="#kontakt" style={styles.navLink}>Kontakt</a>
+          <a href="#om" style={styles.navLink}>Om</a>
         </nav>
       </header>
 
       <section style={styles.hero}>
-        <h1 style={styles.heroTitle}>En enkel, tydelig overskrift som forklarer hva dere gjør</h1>
+        <div style={styles.eyebrow}>Bergen, Norge</div>
+        <h1 style={styles.heroTitle}>Et hjemmenettverk driftet med samme nøyaktighet som jobben</h1>
         <p style={styles.heroText}>
-          Kort undertekst som utdyper løftet fra overskriften. Erstatt med
-          egen tekst når innholdet er klart.
+          Her samles status og lenker til tjenestene som kjører i mitt
+          hjemmenettverk — fra selvhostet Supabase til småprosjekter under utvikling.
         </p>
-        <a href="#kontakt" style={styles.button}>Kom i gang</a>
+        <a href="#tjenester" style={styles.button}>Se tjenester</a>
       </section>
 
       <section id="tjenester" style={styles.section}>
         <div style={styles.sectionLabel}>Tjenester</div>
-        <div style={styles.featureGrid}>
-          <div>
-            <div style={styles.featureNumber}>01</div>
-            <h3 style={styles.featureTitle}>Tjeneste én</h3>
-            <p style={{ color: 'var(--text-muted)' }}>
-              Kort beskrivelse av den første tjenesten eller fordelen dere tilbyr.
+        <div style={styles.serviceGrid}>
+          {services.map((service) => (
+            <div key={service.name} style={styles.serviceCard}>
+              <div style={styles.serviceHead}>
+                <span style={styles.serviceTitle}>{service.name}</span>
+                <span style={styles.statusDot()}>
+                  <span style={styles.dot(statusColor[service.status])} />
+                  Oppe
+                </span>
+              </div>
+              <p style={{ color: 'var(--text-muted)', margin: 0 }}>{service.description}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section id="om" style={{ ...styles.section, borderBottom: 'none' }}>
+        <div style={styles.sectionLabel}>Om drifteren</div>
+        <div style={styles.aboutCard}>
+          <img src={portrait} alt="John Chr. Atkins" style={styles.portrait} />
+          <div style={styles.aboutText}>
+            <p style={{ margin: '0 0 4px', fontWeight: 600 }}>John Chr. Atkins</p>
+            <p style={{ margin: '0 0 12px', color: 'var(--text-muted)' }}>
+              IKT-leder som driver hjemmenettverket på fritiden.
             </p>
-          </div>
-          <div>
-            <div style={styles.featureNumber}>02</div>
-            <h3 style={styles.featureTitle}>Tjeneste to</h3>
-            <p style={{ color: 'var(--text-muted)' }}>
-              Kort beskrivelse av den andre tjenesten eller fordelen dere tilbyr.
-            </p>
-          </div>
-          <div>
-            <div style={styles.featureNumber}>03</div>
-            <h3 style={styles.featureTitle}>Tjeneste tre</h3>
-            <p style={{ color: 'var(--text-muted)' }}>
-              Kort beskrivelse av den tredje tjenesten eller fordelen dere tilbyr.
-            </p>
+            <a href="https://www.atkins.no" target="_blank" rel="noreferrer">
+              Besøk atkins.no →
+            </a>
           </div>
         </div>
       </section>
 
-      <section id="om" style={styles.section}>
-        <div style={styles.sectionLabel}>Om oss</div>
-        <p style={styles.aboutText}>
-          Her kan dere skrive litt om bakgrunnen deres, hva dere står for, og
-          hvorfor noen bør velge nettopp dere. Hold det kort og konkret —
-          én til to avsnitt er ofte nok.
-        </p>
-      </section>
-
-      <section id="kontakt" style={{ ...styles.section, borderBottom: 'none' }}>
-        <div style={styles.sectionLabel}>Kontakt</div>
-        <p style={styles.aboutText}>
-          Ta kontakt på{' '}
-          <a href="mailto:post@firmanavn.no">post@firmanavn.no</a> eller ring{' '}
-          00 00 00 00.
-        </p>
-      </section>
-
       <footer style={styles.footer}>
-        <span>© {new Date().getFullYear()} Firmanavn</span>
-        <span>Org.nr. 000 000 000</span>
+        <span>© {new Date().getFullYear()} Atkins Homelab</span>
+        <a href="https://www.atkins.no" target="_blank" rel="noreferrer" style={{ color: 'var(--text-muted)' }}>
+          atkins.no
+        </a>
       </footer>
     </div>
   )

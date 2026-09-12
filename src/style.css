@@ -1,11 +1,13 @@
 :root {
-  --bg: #fbfaf8;
-  --bg-alt: #f2f0eb;
-  --text: #1c1b19;
-  --text-muted: #5c5850;
-  --border: #ddd8cf;
-  --accent: #6b3f2a;
+  --bg: #f6f7f4;
+  --bg-alt: #eceee8;
+  --text: #171a19;
+  --text-muted: #5b615c;
+  --border: #dce0da;
+  --accent: #2b4a55;
   --max-width: 960px;
+  --font-body: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-heading: "Source Serif 4", Georgia, serif;
 }
 
 * {
@@ -16,12 +18,12 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font-family: Georgia, "Times New Roman", serif;
-  line-height: 1.5;
+  font-family: var(--font-body);
+  line-height: 1.55;
 }
 
 h1, h2, h3 {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  font-family: var(--font-heading);
   font-weight: 600;
   line-height: 1.2;
   margin: 0;
