@@ -55,11 +55,13 @@ def homey_api_get(homey_id: str, token: str, path: str, timeout: int = 10):
 
 
 def find_system_device(devices: dict):
-    # /api/manager/devices/device returnerer { deviceId: {...} }
+    # /api/manager/devices/device returnerer { deviceId: {...} }.
+    # NB: det finnes også en "Alarms Homey Pro (...)" -device (kun alarmer,
+    # ingen temperatur/minne) — bruk startswith, ikke "in", for å ikke
+    # treffe den ved en feil.
     for device_id, device in devices.items():
         name = device.get("name", "")
-        zone_name = (device.get("zoneName") or "")
-        if SYSTEM_DEVICE_NAME_HINT in name or "SysInternals" in zone_name:
+        if name.startswith(SYSTEM_DEVICE_NAME_HINT):
             return device_id, device
     return None, None
 
