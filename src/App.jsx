@@ -383,7 +383,7 @@ export default function App() {
           <UpsServiceCard />
           <HomeyServiceCard deviceId="homey-home" title="Homey (@Home)" />
           <HomeyServiceCard deviceId="homey-hytta" title="Homey (@Hytta)" />
-          <PowerServiceCard deviceId="home-power-consumption" title="Strømforbruk" subtitle="Pulse Nordåsvegen 211." />
+          <PowerServiceCard deviceId="home-power-consumption" title="Strømforbruk" subtitle="Puls Nordås." />
           <PowerServiceCard deviceId="home-power-production" title="Solproduksjon" subtitle="Inverter: Solceller." />
         </div>
       </section>
