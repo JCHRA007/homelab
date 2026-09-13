@@ -292,6 +292,58 @@ function HomeyServiceCard({ deviceId, title }) {
   )
 }
 
+const POWER_STALE_MS = 90 * 60 * 1000
+
+function formatWatt(watts) {
+  if (watts == null) return null
+  return Math.abs(watts) >= 1000 ? `${(watts / 1000).toFixed(2)} kW` : `${Math.round(watts)} W`
+}
+
+function powerStatusInfo(row) {
+  if (!row) {
+    return { label: 'Ukjent', status: 'warn', detail: 'Ingen data mottatt ennå.' }
+  }
+
+  const age = Date.now() - new Date(row.updated_at).getTime()
+  if (age > POWER_STALE_MS) {
+    return {
+      label: 'Frakoblet',
+      status: 'down',
+      detail: `Ingen oppdatering siden ${new Date(row.updated_at).toLocaleString('no-NO')}.`,
+    }
+  }
+
+  const watt = formatWatt(row.raw?.watts)
+  const kwhToday = row.raw?.kwh_today
+  const metrics = [
+    watt,
+    kwhToday != null ? `${kwhToday} kWh i dag` : null,
+  ].filter(Boolean).join(', ')
+
+  return { label: watt ?? 'Oppe', status: 'ok', detail: kwhToday != null ? `${kwhToday} kWh i dag` : '' }
+}
+
+function PowerServiceCard({ deviceId, title, subtitle }) {
+  const { row, loaded } = useDeviceStatus(deviceId)
+  const info = loaded ? powerStatusInfo(row) : { label: 'Laster …', status: 'warn', detail: '' }
+
+  return (
+    <div style={styles.serviceCard}>
+      <div style={styles.serviceHead}>
+        <span style={styles.serviceTitle}>{title}</span>
+        <span style={styles.statusDot()}>
+          <span style={styles.dot(statusColor[info.status])} />
+          {info.label}
+        </span>
+      </div>
+      <p style={{ color: 'var(--text-muted)', margin: 0 }}>
+        {subtitle}
+        {info.detail ? <><br />{info.detail}</> : ''}
+      </p>
+    </div>
+  )
+}
+
 export default function App() {
   return (
     <div style={styles.page}>
@@ -331,6 +383,8 @@ export default function App() {
           <UpsServiceCard />
           <HomeyServiceCard deviceId="homey-home" title="Homey (@Home)" />
           <HomeyServiceCard deviceId="homey-hytta" title="Homey (@Hytta)" />
+          <PowerServiceCard deviceId="home-power-consumption" title="Strømforbruk" subtitle="Pulse Nordåsvegen 211." />
+          <PowerServiceCard deviceId="home-power-production" title="Solproduksjon" subtitle="Inverter: Solceller." />
         </div>
       </section>
 

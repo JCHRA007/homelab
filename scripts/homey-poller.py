@@ -43,6 +43,14 @@ HOMEYS = [
 # ligger i en sone som heter "SysInternals" i begge husene her.
 SYSTEM_DEVICE_NAME_HINT = "Homey Pro"
 
+# Strøm-enheter i @Home sin enhetsliste (faste device-ID-er, hentet fra
+# samme /api/manager/devices/device-kall som system-enheten - ingen ekstra
+# API-kall trengs). Kun for HOME-Homeyen.
+POWER_DEVICES = {
+    "home-power-consumption": ("c700e97e-2ddd-4102-ad3e-ea0ed73e4227", "Strømforbruk (@Home)", "Pulse Nordåsvegen 211"),
+    "home-power-production": ("91ecaabe-5d1a-41f9-83c0-c1a362ec45ad", "Solproduksjon (@Home)", "Inverter: Solceller"),
+}
+
 
 def homey_api_get(homey_id: str, token: str, path: str, timeout: int = 10):
     url = f"https://{homey_id}.connect.athom.com{path}"
@@ -84,6 +92,19 @@ def extract_metrics(device: dict):
     }
 
 
+def extract_power(device: dict):
+    caps = device.get("capabilitiesObj", {})
+
+    def cap_value(cap_id):
+        entry = caps.get(cap_id)
+        return entry.get("value") if entry else None
+
+    return {
+        "watts": cap_value("measure_power"),
+        "kwh_today": cap_value("day_energy_capability"),
+    }
+
+
 def upsert_status(device_id: str, label: str, metrics: dict, online: bool):
     payload = [{
         "device_id": device_id,
@@ -122,10 +143,28 @@ def poll_one(device_id: str, env_prefix: str, label: str) -> bool:
         metrics = extract_metrics(sys_device)
         upsert_status(device_id, label, metrics, online=True)
         print(f"OK: {label} -> temp={metrics['temperature']} freemem%={metrics['freemem_percent']}")
+
+        if env_prefix == "HOME":
+            poll_power_devices(devices)
+
         return True
     except Exception as exc:
         print(f"FEIL ({label}): {exc}", file=sys.stderr)
         return False
+
+
+def poll_power_devices(devices: dict):
+    for power_id, (homey_device_id, label, device_name) in POWER_DEVICES.items():
+        device = devices.get(homey_device_id)
+        if not device:
+            print(f"FEIL ({label}): fant ikke device-id {homey_device_id} ({device_name})", file=sys.stderr)
+            continue
+        try:
+            power = extract_power(device)
+            upsert_status(power_id, label, power, online=True)
+            print(f"OK: {label} -> watt={power['watts']} kwh_today={power['kwh_today']}")
+        except Exception as exc:
+            print(f"FEIL ({label}): {exc}", file=sys.stderr)
 
 
 def main():
