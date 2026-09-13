@@ -158,6 +158,40 @@ const statusColor = {
   down: '#a4342a',
 }
 
+const DEVICE_REFRESH_MS = 60 * 60 * 1000
+
+function useDeviceStatus(deviceId) {
+  const [row, setRow] = useState(null)
+  const [loaded, setLoaded] = useState(false)
+
+  useEffect(() => {
+    let active = true
+
+    const fetchStatus = () => {
+      supabase
+        .from('device_status')
+        .select('*')
+        .eq('device_id', deviceId)
+        .maybeSingle()
+        .then(({ data }) => {
+          if (active) {
+            setRow(data)
+            setLoaded(true)
+          }
+        })
+    }
+
+    fetchStatus()
+    const interval = setInterval(fetchStatus, DEVICE_REFRESH_MS)
+    return () => {
+      active = false
+      clearInterval(interval)
+    }
+  }, [deviceId])
+
+  return { row, loaded }
+}
+
 const UPS_STALE_MS = 90 * 60 * 1000
 
 function upsStatusInfo(row) {
@@ -187,37 +221,8 @@ function upsStatusInfo(row) {
   return { label: row.status ?? 'Ukjent', status: 'warn', detail: metrics }
 }
 
-const UPS_REFRESH_MS = 60 * 60 * 1000
-
 function UpsServiceCard() {
-  const [row, setRow] = useState(null)
-  const [loaded, setLoaded] = useState(false)
-
-  useEffect(() => {
-    let active = true
-
-    const fetchStatus = () => {
-      supabase
-        .from('device_status')
-        .select('*')
-        .eq('device_id', 'ups')
-        .maybeSingle()
-        .then(({ data }) => {
-          if (active) {
-            setRow(data)
-            setLoaded(true)
-          }
-        })
-    }
-
-    fetchStatus()
-    const interval = setInterval(fetchStatus, UPS_REFRESH_MS)
-    return () => {
-      active = false
-      clearInterval(interval)
-    }
-  }, [])
-
+  const { row, loaded } = useDeviceStatus('ups')
   const info = loaded ? upsStatusInfo(row) : { label: 'Laster …', status: 'warn', detail: '' }
 
   return (
@@ -231,6 +236,56 @@ function UpsServiceCard() {
       </div>
       <p style={{ color: 'var(--text-muted)', margin: 0 }}>
         APC Back-UPS BX950MI.
+        {info.detail ? <><br />{info.detail}</> : ''}
+      </p>
+    </div>
+  )
+}
+
+const HOMEY_STALE_MS = 90 * 60 * 1000
+
+function homeyStatusInfo(row) {
+  if (!row) {
+    return { label: 'Ukjent', status: 'warn', detail: 'Ingen data mottatt ennå.' }
+  }
+
+  const age = Date.now() - new Date(row.updated_at).getTime()
+  if (age > HOMEY_STALE_MS) {
+    return {
+      label: 'Frakoblet',
+      status: 'down',
+      detail: `Ingen oppdatering siden ${new Date(row.updated_at).toLocaleString('no-NO')}.`,
+    }
+  }
+
+  const temp = row.raw?.temperature
+  const freemem = row.raw?.freemem_percent
+  const metrics = [
+    temp != null ? `${temp}°C` : null,
+    freemem != null ? `${freemem}% ledig minne` : null,
+  ].filter(Boolean).join(', ')
+
+  if (row.status === 'online') {
+    return { label: 'Oppe', status: 'ok', detail: metrics }
+  }
+  return { label: 'Nede', status: 'down', detail: metrics }
+}
+
+function HomeyServiceCard({ deviceId, title }) {
+  const { row, loaded } = useDeviceStatus(deviceId)
+  const info = loaded ? homeyStatusInfo(row) : { label: 'Laster …', status: 'warn', detail: '' }
+
+  return (
+    <div style={styles.serviceCard}>
+      <div style={styles.serviceHead}>
+        <span style={styles.serviceTitle}>{title}</span>
+        <span style={styles.statusDot()}>
+          <span style={styles.dot(statusColor[info.status])} />
+          {info.label}
+        </span>
+      </div>
+      <p style={{ color: 'var(--text-muted)', margin: 0 }}>
+        Homey Pro.
         {info.detail ? <><br />{info.detail}</> : ''}
       </p>
     </div>
@@ -274,6 +329,8 @@ export default function App() {
             </div>
           ))}
           <UpsServiceCard />
+          <HomeyServiceCard deviceId="homey-home" title="Homey (@Home)" />
+          <HomeyServiceCard deviceId="homey-hytta" title="Homey (@Hytta)" />
         </div>
       </section>
 
