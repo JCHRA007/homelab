@@ -230,7 +230,8 @@ function UpsServiceCard() {
         </span>
       </div>
       <p style={{ color: 'var(--text-muted)', margin: 0 }}>
-        APC Back-UPS BX950MI.{info.detail ? ` ${info.detail}` : ''}
+        APC Back-UPS BX950MI.
+        {info.detail ? <><br />{info.detail}</> : ''}
       </p>
     </div>
   )
