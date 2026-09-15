@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import portrait from './assets/john-portrait.jpg'
 import { supabase } from './supabaseClient'
 
@@ -323,12 +323,163 @@ function powerStatusInfo(row) {
   return { label: watt ?? 'Oppe', status: 'ok', detail: kwhToday != null ? `${kwhToday} kWh i dag` : '' }
 }
 
+function usePowerHistory(deviceId, enabled) {
+  const [points, setPoints] = useState(null) // null = ikke lastet ennå, [] = lastet, tom
+
+  useEffect(() => {
+    if (!enabled) return
+    let active = true
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+    supabase
+      .from('device_metrics')
+      .select('watts, recorded_at')
+      .eq('device_id', deviceId)
+      .gte('recorded_at', since)
+      .order('recorded_at', { ascending: true })
+      .then(({ data }) => {
+        if (active) setPoints(data ?? [])
+      })
+    return () => {
+      active = false
+    }
+  }, [deviceId, enabled])
+
+  return points
+}
+
+function PowerHistoryChart({ deviceId }) {
+  const points = usePowerHistory(deviceId, true)
+  const [hoverIndex, setHoverIndex] = useState(null)
+  const svgRef = useRef(null)
+
+  if (points === null) {
+    return <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: '12px 0 0' }}>Laster graf …</p>
+  }
+
+  const valid = points.filter((p) => p.watts != null)
+  if (valid.length < 2) {
+    return (
+      <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: '12px 0 0' }}>
+        Ikke nok data ennå — grafen fylles opp over de neste 24 timene.
+      </p>
+    )
+  }
+
+  const width = 560
+  const height = 160
+  const padding = { top: 10, right: 10, bottom: 24, left: 48 }
+  const plotW = width - padding.left - padding.right
+  const plotH = height - padding.top - padding.bottom
+
+  const getTime = (p) => new Date(p.recorded_at).getTime()
+  const times = valid.map(getTime)
+  const watts = valid.map((p) => p.watts)
+  const minT = times[0]
+  const maxT = times[times.length - 1]
+  const minW = Math.min(0, ...watts)
+  const maxW = Math.max(...watts)
+  const wRange = maxW - minW || 1
+
+  const xFor = (t) => padding.left + ((t - minT) / (maxT - minT || 1)) * plotW
+  const yFor = (w) => padding.top + plotH - ((w - minW) / wRange) * plotH
+
+  const pathD = valid
+    .map((p, i) => `${i === 0 ? 'M' : 'L'} ${xFor(getTime(p))} ${yFor(p.watts)}`)
+    .join(' ')
+
+  const zeroY = yFor(0)
+  const hovered = hoverIndex != null ? valid[hoverIndex] : null
+  const tickTimes = [minT, minT + (maxT - minT) / 2, maxT]
+
+  const handleMove = (e) => {
+    const rect = svgRef.current.getBoundingClientRect()
+    const x = ((e.clientX - rect.left) / rect.width) * width
+    let closest = 0
+    let closestDist = Infinity
+    valid.forEach((p, i) => {
+      const dist = Math.abs(xFor(getTime(p)) - x)
+      if (dist < closestDist) {
+        closestDist = dist
+        closest = i
+      }
+    })
+    setHoverIndex(closest)
+  }
+
+  return (
+    <div style={{ marginTop: 12 }} onClick={(e) => e.stopPropagation()}>
+      <svg
+        ref={svgRef}
+        viewBox={`0 0 ${width} ${height}`}
+        style={{ width: '100%', height: 'auto', display: 'block' }}
+        onMouseMove={handleMove}
+        onMouseLeave={() => setHoverIndex(null)}
+      >
+        {minW < 0 && maxW > 0 && (
+          <line x1={padding.left} y1={zeroY} x2={width - padding.right} y2={zeroY} stroke="var(--border)" strokeWidth="1" />
+        )}
+        <line x1={padding.left} y1={padding.top} x2={padding.left} y2={height - padding.bottom} stroke="var(--border)" strokeWidth="1" />
+        <line x1={padding.left} y1={height - padding.bottom} x2={width - padding.right} y2={height - padding.bottom} stroke="var(--border)" strokeWidth="1" />
+
+        <path d={pathD} fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+
+        {tickTimes.map((t, i) => (
+          <text
+            key={i}
+            x={xFor(t)}
+            y={height - 6}
+            fontSize="10"
+            fill="var(--text-muted)"
+            textAnchor={i === 0 ? 'start' : i === tickTimes.length - 1 ? 'end' : 'middle'}
+          >
+            {new Date(t).toLocaleTimeString('no-NO', { hour: '2-digit', minute: '2-digit' })}
+          </text>
+        ))}
+
+        <text x={padding.left - 6} y={yFor(maxW) + 4} fontSize="10" fill="var(--text-muted)" textAnchor="end">
+          {formatWatt(maxW)}
+        </text>
+        <text x={padding.left - 6} y={yFor(minW) + 4} fontSize="10" fill="var(--text-muted)" textAnchor="end">
+          {formatWatt(minW)}
+        </text>
+
+        {hovered && (
+          <>
+            <line
+              x1={xFor(getTime(hovered))}
+              y1={padding.top}
+              x2={xFor(getTime(hovered))}
+              y2={height - padding.bottom}
+              stroke="var(--text-muted)"
+              strokeWidth="1"
+              strokeDasharray="2,2"
+            />
+            <circle cx={xFor(getTime(hovered))} cy={yFor(hovered.watts)} r="4" fill="var(--accent)" />
+          </>
+        )}
+      </svg>
+      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4, minHeight: 16 }}>
+        {hovered ? `${new Date(hovered.recorded_at).toLocaleString('no-NO')}: ${formatWatt(hovered.watts)}` : ' '}
+      </div>
+    </div>
+  )
+}
+
 function PowerServiceCard({ deviceId, title, subtitle }) {
   const { row, loaded } = useDeviceStatus(deviceId)
+  const [expanded, setExpanded] = useState(false)
   const info = loaded ? powerStatusInfo(row) : { label: 'Laster …', status: 'warn', detail: '' }
 
   return (
-    <div style={styles.serviceCard}>
+    <div
+      style={{ ...styles.serviceCard, cursor: 'pointer' }}
+      onClick={() => setExpanded((v) => !v)}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') setExpanded((v) => !v)
+      }}
+    >
       <div style={styles.serviceHead}>
         <span style={styles.serviceTitle}>{title}</span>
         <span style={styles.statusDot()}>
@@ -340,6 +491,10 @@ function PowerServiceCard({ deviceId, title, subtitle }) {
         {subtitle}
         {info.detail ? <><br />{info.detail}</> : ''}
       </p>
+      <p style={{ color: 'var(--text-muted)', fontSize: 12, margin: '8px 0 0' }}>
+        {expanded ? 'Skjul graf (siste 24t) ▲' : 'Vis graf (siste 24t) ▼'}
+      </p>
+      {expanded && <PowerHistoryChart deviceId={deviceId} />}
     </div>
   )
 }

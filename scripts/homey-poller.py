@@ -126,6 +126,27 @@ def upsert_status(device_id: str, label: str, metrics: dict, online: bool):
         resp.read()
 
 
+def insert_metric(device_id: str, watts, kwh_today):
+    payload = [{
+        "device_id": device_id,
+        "watts": watts,
+        "kwh_today": kwh_today,
+    }]
+    req = urllib.request.Request(
+        f"{SUPABASE_URL}/rest/v1/device_metrics",
+        data=json.dumps(payload).encode(),
+        method="POST",
+        headers={
+            "apikey": SUPABASE_SERVICE_KEY,
+            "Authorization": f"Bearer {SUPABASE_SERVICE_KEY}",
+            "Content-Type": "application/json",
+            "Prefer": "return=minimal",
+        },
+    )
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        resp.read()
+
+
 def poll_one(device_id: str, env_prefix: str, label: str) -> bool:
     homey_id = os.environ.get(f"{env_prefix}_HOMEY_ID")
     token = os.environ.get(f"{env_prefix}_HOMEY_TOKEN")
@@ -162,6 +183,7 @@ def poll_power_devices(devices: dict):
         try:
             power = extract_power(device)
             upsert_status(power_id, label, power, online=True)
+            insert_metric(power_id, power["watts"], power["kwh_today"])
             print(f"OK: {label} -> watt={power['watts']} kwh_today={power['kwh_today']}")
         except Exception as exc:
             print(f"FEIL ({label}): {exc}", file=sys.stderr)
