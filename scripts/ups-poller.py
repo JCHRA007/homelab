@@ -102,6 +102,30 @@ def upsert_status(supabase_url, service_key, device_id, data):
         resp.read()
 
 
+def insert_metrics(supabase_url, service_key, device_id, metrics: dict):
+    # metrics: { "battery_charge": 100, "load_percent": 54, ... } - None-verdier hoppes over.
+    payload = [
+        {"device_id": device_id, "metric": metric, "value": value}
+        for metric, value in metrics.items()
+        if value is not None
+    ]
+    if not payload:
+        return
+    req = urllib.request.Request(
+        f"{supabase_url}/rest/v1/device_metrics",
+        data=json.dumps(payload).encode(),
+        method="POST",
+        headers={
+            "apikey": service_key,
+            "Authorization": f"Bearer {service_key}",
+            "Content-Type": "application/json",
+            "Prefer": "return=minimal",
+        },
+    )
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        resp.read()
+
+
 def main():
     if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
         print("Mangler SUPABASE_URL eller SUPABASE_SERVICE_KEY", file=sys.stderr)
@@ -110,6 +134,10 @@ def main():
     try:
         data = fetch_ups_vars(NUT_HOST, NUT_PORT, UPS_NAME)
         upsert_status(SUPABASE_URL, SUPABASE_SERVICE_KEY, DEVICE_ID, data)
+        insert_metrics(SUPABASE_URL, SUPABASE_SERVICE_KEY, DEVICE_ID, {
+            "battery_charge": to_int(data.get("battery.charge")),
+            "load_percent": to_int(data.get("ups.load")),
+        })
         print(f"OK: {DEVICE_ID} -> {data.get('ups.status')}")
         return 0
     except Exception as exc:

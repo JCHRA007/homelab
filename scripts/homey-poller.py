@@ -126,12 +126,15 @@ def upsert_status(device_id: str, label: str, metrics: dict, online: bool):
         resp.read()
 
 
-def insert_metric(device_id: str, watts, kwh_today):
-    payload = [{
-        "device_id": device_id,
-        "watts": watts,
-        "kwh_today": kwh_today,
-    }]
+def insert_metrics(device_id: str, metrics: dict):
+    # metrics: { "temperature": 61.2, "freemem_percent": 66, ... } - None-verdier hoppes over.
+    payload = [
+        {"device_id": device_id, "metric": metric, "value": value}
+        for metric, value in metrics.items()
+        if value is not None
+    ]
+    if not payload:
+        return
     req = urllib.request.Request(
         f"{SUPABASE_URL}/rest/v1/device_metrics",
         data=json.dumps(payload).encode(),
@@ -163,6 +166,10 @@ def poll_one(device_id: str, env_prefix: str, label: str) -> bool:
 
         metrics = extract_metrics(sys_device)
         upsert_status(device_id, label, metrics, online=True)
+        insert_metrics(device_id, {
+            "temperature": metrics["temperature"],
+            "freemem_percent": metrics["freemem_percent"],
+        })
         print(f"OK: {label} -> temp={metrics['temperature']} freemem%={metrics['freemem_percent']}")
 
         if env_prefix == "HOME":
@@ -183,7 +190,7 @@ def poll_power_devices(devices: dict):
         try:
             power = extract_power(device)
             upsert_status(power_id, label, power, online=True)
-            insert_metric(power_id, power["watts"], power["kwh_today"])
+            insert_metrics(power_id, {"watts": power["watts"]})
             print(f"OK: {label} -> watt={power['watts']} kwh_today={power['kwh_today']}")
         except Exception as exc:
             print(f"FEIL ({label}): {exc}", file=sys.stderr)

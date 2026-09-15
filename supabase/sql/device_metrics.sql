@@ -1,18 +1,22 @@
--- Kjør denne én gang i Supabase Studio (supabase.atkins.nu) → SQL Editor.
--- Tidsserie-tabell for graf-historikk (24t), i motsetning til device_status
--- som kun holder siste verdi. Pollere setter inn en ny rad hver kjøring
--- (upsert brukes ikke her — vi vil beholde historikken).
+-- Kjør denne i Supabase Studio (supabase.atkins.nu) → SQL Editor.
+-- Erstatter en tidligere versjon av device_metrics som var spesifikk for
+-- strøm (watts/kwh_today) med en generisk metrikk-logg (metric + value),
+-- slik at UPS og Homey-ene (temperatur, minne, batteri, last) kan bruke
+-- samme tabell som strømkortene. Trygt å kjøre på nytt siden funksjonen
+-- er splitter ny og ingen historikk er verdt å bevare ennå.
 
-create table if not exists public.device_metrics (
+drop table if exists public.device_metrics;
+
+create table public.device_metrics (
   id bigint generated always as identity primary key,
   device_id text not null,
-  watts numeric,
-  kwh_today numeric,
+  metric text not null,
+  value numeric,
   recorded_at timestamptz not null default now()
 );
 
-create index if not exists device_metrics_device_id_recorded_at_idx
-  on public.device_metrics (device_id, recorded_at desc);
+create index device_metrics_device_metric_recorded_at_idx
+  on public.device_metrics (device_id, metric, recorded_at desc);
 
 alter table public.device_metrics enable row level security;
 
@@ -22,7 +26,7 @@ create policy "Public read access" on public.device_metrics
   to anon
   using (true);
 
--- Ingen insert/update/delete-policy for anon: pollerscriptet skriver med
+-- Ingen insert/update/delete-policy for anon: pollerscriptene skriver med
 -- service_role-nøkkelen, som omgår RLS.
 
 -- Valgfritt vedlikehold: slett rader eldre enn f.eks. 30 dager for å holde

@@ -226,19 +226,14 @@ function UpsServiceCard() {
   const info = loaded ? upsStatusInfo(row) : { label: 'Laster …', status: 'warn', detail: '' }
 
   return (
-    <div style={styles.serviceCard}>
-      <div style={styles.serviceHead}>
-        <span style={styles.serviceTitle}>UPS (strøm)</span>
-        <span style={styles.statusDot()}>
-          <span style={styles.dot(statusColor[info.status])} />
-          {info.label}
-        </span>
-      </div>
-      <p style={{ color: 'var(--text-muted)', margin: 0 }}>
-        APC Back-UPS BX950MI.
-        {info.detail ? <><br />{info.detail}</> : ''}
-      </p>
-    </div>
+    <ExpandableCard
+      title="UPS (strøm)"
+      info={info}
+      subtitle="APC Back-UPS BX950MI."
+      deviceId="ups"
+      metric="battery_charge"
+      formatValue={(v) => `${Math.round(v)}%`}
+    />
   )
 }
 
@@ -276,19 +271,14 @@ function HomeyServiceCard({ deviceId, title }) {
   const info = loaded ? homeyStatusInfo(row) : { label: 'Laster …', status: 'warn', detail: '' }
 
   return (
-    <div style={styles.serviceCard}>
-      <div style={styles.serviceHead}>
-        <span style={styles.serviceTitle}>{title}</span>
-        <span style={styles.statusDot()}>
-          <span style={styles.dot(statusColor[info.status])} />
-          {info.label}
-        </span>
-      </div>
-      <p style={{ color: 'var(--text-muted)', margin: 0 }}>
-        Homey Pro.
-        {info.detail ? <><br />{info.detail}</> : ''}
-      </p>
-    </div>
+    <ExpandableCard
+      title={title}
+      info={info}
+      subtitle="Homey Pro."
+      deviceId={deviceId}
+      metric="temperature"
+      formatValue={(v) => `${v.toFixed(1)}°C`}
+    />
   )
 }
 
@@ -323,7 +313,7 @@ function powerStatusInfo(row) {
   return { label: watt ?? 'Oppe', status: 'ok', detail: kwhToday != null ? `${kwhToday} kWh i dag` : '' }
 }
 
-function usePowerHistory(deviceId, enabled) {
+function useMetricHistory(deviceId, metric, enabled) {
   const [points, setPoints] = useState(null) // null = ikke lastet ennå, [] = lastet, tom
 
   useEffect(() => {
@@ -332,8 +322,9 @@ function usePowerHistory(deviceId, enabled) {
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
     supabase
       .from('device_metrics')
-      .select('watts, recorded_at')
+      .select('value, recorded_at')
       .eq('device_id', deviceId)
+      .eq('metric', metric)
       .gte('recorded_at', since)
       .order('recorded_at', { ascending: true })
       .then(({ data }) => {
@@ -342,13 +333,13 @@ function usePowerHistory(deviceId, enabled) {
     return () => {
       active = false
     }
-  }, [deviceId, enabled])
+  }, [deviceId, metric, enabled])
 
   return points
 }
 
-function PowerHistoryChart({ deviceId }) {
-  const points = usePowerHistory(deviceId, true)
+function MetricHistoryChart({ deviceId, metric, formatValue }) {
+  const points = useMetricHistory(deviceId, metric, true)
   const [hoverIndex, setHoverIndex] = useState(null)
   const svgRef = useRef(null)
 
@@ -356,7 +347,7 @@ function PowerHistoryChart({ deviceId }) {
     return <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: '12px 0 0' }}>Laster graf …</p>
   }
 
-  const valid = points.filter((p) => p.watts != null)
+  const valid = points.filter((p) => p.value != null)
   if (valid.length < 2) {
     return (
       <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: '12px 0 0' }}>
@@ -373,18 +364,18 @@ function PowerHistoryChart({ deviceId }) {
 
   const getTime = (p) => new Date(p.recorded_at).getTime()
   const times = valid.map(getTime)
-  const watts = valid.map((p) => p.watts)
+  const values = valid.map((p) => p.value)
   const minT = times[0]
   const maxT = times[times.length - 1]
-  const minW = Math.min(0, ...watts)
-  const maxW = Math.max(...watts)
-  const wRange = maxW - minW || 1
+  const minV = Math.min(0, ...values)
+  const maxV = Math.max(...values)
+  const vRange = maxV - minV || 1
 
   const xFor = (t) => padding.left + ((t - minT) / (maxT - minT || 1)) * plotW
-  const yFor = (w) => padding.top + plotH - ((w - minW) / wRange) * plotH
+  const yFor = (v) => padding.top + plotH - ((v - minV) / vRange) * plotH
 
   const pathD = valid
-    .map((p, i) => `${i === 0 ? 'M' : 'L'} ${xFor(getTime(p))} ${yFor(p.watts)}`)
+    .map((p, i) => `${i === 0 ? 'M' : 'L'} ${xFor(getTime(p))} ${yFor(p.value)}`)
     .join(' ')
 
   const zeroY = yFor(0)
@@ -415,7 +406,7 @@ function PowerHistoryChart({ deviceId }) {
         onMouseMove={handleMove}
         onMouseLeave={() => setHoverIndex(null)}
       >
-        {minW < 0 && maxW > 0 && (
+        {minV < 0 && maxV > 0 && (
           <line x1={padding.left} y1={zeroY} x2={width - padding.right} y2={zeroY} stroke="var(--border)" strokeWidth="1" />
         )}
         <line x1={padding.left} y1={padding.top} x2={padding.left} y2={height - padding.bottom} stroke="var(--border)" strokeWidth="1" />
@@ -436,11 +427,11 @@ function PowerHistoryChart({ deviceId }) {
           </text>
         ))}
 
-        <text x={padding.left - 6} y={yFor(maxW) + 4} fontSize="10" fill="var(--text-muted)" textAnchor="end">
-          {formatWatt(maxW)}
+        <text x={padding.left - 6} y={yFor(maxV) + 4} fontSize="10" fill="var(--text-muted)" textAnchor="end">
+          {formatValue(maxV)}
         </text>
-        <text x={padding.left - 6} y={yFor(minW) + 4} fontSize="10" fill="var(--text-muted)" textAnchor="end">
-          {formatWatt(minW)}
+        <text x={padding.left - 6} y={yFor(minV) + 4} fontSize="10" fill="var(--text-muted)" textAnchor="end">
+          {formatValue(minV)}
         </text>
 
         {hovered && (
@@ -454,21 +445,19 @@ function PowerHistoryChart({ deviceId }) {
               strokeWidth="1"
               strokeDasharray="2,2"
             />
-            <circle cx={xFor(getTime(hovered))} cy={yFor(hovered.watts)} r="4" fill="var(--accent)" />
+            <circle cx={xFor(getTime(hovered))} cy={yFor(hovered.value)} r="4" fill="var(--accent)" />
           </>
         )}
       </svg>
       <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4, minHeight: 16 }}>
-        {hovered ? `${new Date(hovered.recorded_at).toLocaleString('no-NO')}: ${formatWatt(hovered.watts)}` : ' '}
+        {hovered ? `${new Date(hovered.recorded_at).toLocaleString('no-NO')}: ${formatValue(hovered.value)}` : ' '}
       </div>
     </div>
   )
 }
 
-function PowerServiceCard({ deviceId, title, subtitle }) {
-  const { row, loaded } = useDeviceStatus(deviceId)
+function ExpandableCard({ title, info, subtitle, deviceId, metric, formatValue }) {
   const [expanded, setExpanded] = useState(false)
-  const info = loaded ? powerStatusInfo(row) : { label: 'Laster …', status: 'warn', detail: '' }
 
   return (
     <div
@@ -494,8 +483,24 @@ function PowerServiceCard({ deviceId, title, subtitle }) {
       <p style={{ color: 'var(--text-muted)', fontSize: 12, margin: '8px 0 0' }}>
         {expanded ? 'Skjul graf (siste 24t) ▲' : 'Vis graf (siste 24t) ▼'}
       </p>
-      {expanded && <PowerHistoryChart deviceId={deviceId} />}
+      {expanded && <MetricHistoryChart deviceId={deviceId} metric={metric} formatValue={formatValue} />}
     </div>
+  )
+}
+
+function PowerServiceCard({ deviceId, title, subtitle }) {
+  const { row, loaded } = useDeviceStatus(deviceId)
+  const info = loaded ? powerStatusInfo(row) : { label: 'Laster …', status: 'warn', detail: '' }
+
+  return (
+    <ExpandableCard
+      title={title}
+      info={info}
+      subtitle={subtitle}
+      deviceId={deviceId}
+      metric="watts"
+      formatValue={formatWatt}
+    />
   )
 }
 
