@@ -231,7 +231,10 @@ function UpsServiceCard() {
       info={info}
       subtitle="APC Back-UPS BX950MI."
       deviceId="ups"
-      metric="battery_charge"
+      series={[
+        { metric: 'battery_charge', label: 'Batteri', color: '#2a78d6' },
+        { metric: 'load_percent', label: 'Last', color: '#eb6834' },
+      ]}
       formatValue={(v) => `${Math.round(v)}%`}
     />
   )
@@ -276,7 +279,7 @@ function HomeyServiceCard({ deviceId, title }) {
       info={info}
       subtitle="Homey Pro."
       deviceId={deviceId}
-      metric="temperature"
+      series={[{ metric: 'temperature', label: 'Temperatur', color: '#2a78d6' }]}
       formatValue={(v) => `${v.toFixed(1)}°C`}
     />
   )
@@ -313,8 +316,9 @@ function powerStatusInfo(row) {
   return { label: watt ?? 'Oppe', status: 'ok', detail: kwhToday != null ? `${kwhToday} kWh i dag` : '' }
 }
 
-function useMetricHistory(deviceId, metric, enabled) {
-  const [points, setPoints] = useState(null) // null = ikke lastet ennå, [] = lastet, tom
+function useMetricHistory(deviceId, metrics, enabled) {
+  const [pointsByMetric, setPointsByMetric] = useState(null) // null = ikke lastet ennå
+  const metricsKey = metrics.join(',')
 
   useEffect(() => {
     if (!enabled) return
@@ -322,33 +326,50 @@ function useMetricHistory(deviceId, metric, enabled) {
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
     supabase
       .from('device_metrics')
-      .select('value, recorded_at')
+      .select('metric, value, recorded_at')
       .eq('device_id', deviceId)
-      .eq('metric', metric)
+      .in('metric', metricsKey.split(','))
       .gte('recorded_at', since)
       .order('recorded_at', { ascending: true })
       .then(({ data }) => {
-        if (active) setPoints(data ?? [])
+        if (!active) return
+        const grouped = {}
+        metricsKey.split(',').forEach((m) => {
+          grouped[m] = []
+        })
+        ;(data ?? []).forEach((row) => {
+          if (grouped[row.metric]) grouped[row.metric].push(row)
+        })
+        setPointsByMetric(grouped)
       })
     return () => {
       active = false
     }
-  }, [deviceId, metric, enabled])
+  }, [deviceId, metricsKey, enabled])
 
-  return points
+  return pointsByMetric
 }
 
-function MetricHistoryChart({ deviceId, metric, formatValue }) {
-  const points = useMetricHistory(deviceId, metric, true)
+// series: [{ metric, label, color }] — én rad = ett tall (som Homey/strøm),
+// flere rader deler samme y-akse og tegnes som egne linjer med forklaring
+// (f.eks. UPS: batteri % + last %, begge er prosent så samme akse er riktig).
+function MetricHistoryChart({ deviceId, series, formatValue }) {
+  const metricNames = series.map((s) => s.metric)
+  const pointsByMetric = useMetricHistory(deviceId, metricNames, true)
   const [hoverIndex, setHoverIndex] = useState(null)
   const svgRef = useRef(null)
 
-  if (points === null) {
+  if (pointsByMetric === null) {
     return <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: '12px 0 0' }}>Laster graf …</p>
   }
 
-  const valid = points.filter((p) => p.value != null)
-  if (valid.length < 2) {
+  const seriesData = series.map((s) => ({
+    ...s,
+    points: (pointsByMetric[s.metric] ?? []).filter((p) => p.value != null),
+  }))
+  const totalPoints = seriesData.reduce((sum, s) => sum + s.points.length, 0)
+
+  if (totalPoints < 2) {
     return (
       <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: '12px 0 0' }}>
         Ikke nok data ennå — grafen fylles opp over de neste 24 timene.
@@ -363,10 +384,11 @@ function MetricHistoryChart({ deviceId, metric, formatValue }) {
   const plotH = height - padding.top - padding.bottom
 
   const getTime = (p) => new Date(p.recorded_at).getTime()
-  const times = valid.map(getTime)
-  const values = valid.map((p) => p.value)
-  const minT = times[0]
-  const maxT = times[times.length - 1]
+  const allPoints = seriesData.flatMap((s) => s.points)
+  const times = allPoints.map(getTime)
+  const values = allPoints.map((p) => p.value)
+  const minT = Math.min(...times)
+  const maxT = Math.max(...times)
   const minV = Math.min(0, ...values)
   const maxV = Math.max(...values)
   const vRange = maxV - minV || 1
@@ -374,20 +396,23 @@ function MetricHistoryChart({ deviceId, metric, formatValue }) {
   const xFor = (t) => padding.left + ((t - minT) / (maxT - minT || 1)) * plotW
   const yFor = (v) => padding.top + plotH - ((v - minV) / vRange) * plotH
 
-  const pathD = valid
-    .map((p, i) => `${i === 0 ? 'M' : 'L'} ${xFor(getTime(p))} ${yFor(p.value)}`)
-    .join(' ')
+  const pathFor = (points) =>
+    points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${xFor(getTime(p))} ${yFor(p.value)}`).join(' ')
 
   const zeroY = yFor(0)
-  const hovered = hoverIndex != null ? valid[hoverIndex] : null
   const tickTimes = [minT, minT + (maxT - minT) / 2, maxT]
+
+  // Alle serier for samme device/poll deler tidsstempel, så x-posisjon
+  // for hover styres av den serien som faktisk har flest punkter.
+  const primarySeries = seriesData.reduce((a, b) => (b.points.length > a.points.length ? b : a))
+  const hovered = hoverIndex != null ? primarySeries.points[hoverIndex] : null
 
   const handleMove = (e) => {
     const rect = svgRef.current.getBoundingClientRect()
     const x = ((e.clientX - rect.left) / rect.width) * width
     let closest = 0
     let closestDist = Infinity
-    valid.forEach((p, i) => {
+    primarySeries.points.forEach((p, i) => {
       const dist = Math.abs(xFor(getTime(p)) - x)
       if (dist < closestDist) {
         closestDist = dist
@@ -397,8 +422,33 @@ function MetricHistoryChart({ deviceId, metric, formatValue }) {
     setHoverIndex(closest)
   }
 
+  const hoveredPerSeries = hovered
+    ? seriesData.map((s) => {
+        let closest = null
+        let closestDist = Infinity
+        s.points.forEach((p) => {
+          const dist = Math.abs(getTime(p) - getTime(hovered))
+          if (dist < closestDist) {
+            closestDist = dist
+            closest = p
+          }
+        })
+        return { ...s, point: closest }
+      })
+    : null
+
   return (
     <div style={{ marginTop: 12 }} onClick={(e) => e.stopPropagation()}>
+      {series.length > 1 && (
+        <div style={{ display: 'flex', gap: 16, fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>
+          {series.map((s) => (
+            <span key={s.metric} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: s.color, display: 'inline-block' }} />
+              {s.label}
+            </span>
+          ))}
+        </div>
+      )}
       <svg
         ref={svgRef}
         viewBox={`0 0 ${width} ${height}`}
@@ -412,7 +462,17 @@ function MetricHistoryChart({ deviceId, metric, formatValue }) {
         <line x1={padding.left} y1={padding.top} x2={padding.left} y2={height - padding.bottom} stroke="var(--border)" strokeWidth="1" />
         <line x1={padding.left} y1={height - padding.bottom} x2={width - padding.right} y2={height - padding.bottom} stroke="var(--border)" strokeWidth="1" />
 
-        <path d={pathD} fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        {seriesData.map((s) => (
+          <path
+            key={s.metric}
+            d={pathFor(s.points)}
+            fill="none"
+            stroke={s.color}
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        ))}
 
         {tickTimes.map((t, i) => (
           <text
@@ -435,28 +495,37 @@ function MetricHistoryChart({ deviceId, metric, formatValue }) {
         </text>
 
         {hovered && (
-          <>
-            <line
-              x1={xFor(getTime(hovered))}
-              y1={padding.top}
-              x2={xFor(getTime(hovered))}
-              y2={height - padding.bottom}
-              stroke="var(--text-muted)"
-              strokeWidth="1"
-              strokeDasharray="2,2"
-            />
-            <circle cx={xFor(getTime(hovered))} cy={yFor(hovered.value)} r="4" fill="var(--accent)" />
-          </>
+          <line
+            x1={xFor(getTime(hovered))}
+            y1={padding.top}
+            x2={xFor(getTime(hovered))}
+            y2={height - padding.bottom}
+            stroke="var(--text-muted)"
+            strokeWidth="1"
+            strokeDasharray="2,2"
+          />
         )}
+        {hoveredPerSeries &&
+          hoveredPerSeries.map(
+            (s) =>
+              s.point && (
+                <circle key={s.metric} cx={xFor(getTime(s.point))} cy={yFor(s.point.value)} r="4" fill={s.color} />
+              )
+          )}
       </svg>
       <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4, minHeight: 16 }}>
-        {hovered ? `${new Date(hovered.recorded_at).toLocaleString('no-NO')}: ${formatValue(hovered.value)}` : ' '}
+        {hoveredPerSeries
+          ? `${new Date(hovered.recorded_at).toLocaleString('no-NO')}: ${hoveredPerSeries
+              .map((s) => (s.point ? `${series.length > 1 ? `${s.label} ` : ''}${formatValue(s.point.value)}` : null))
+              .filter(Boolean)
+              .join(' · ')}`
+          : ' '}
       </div>
     </div>
   )
 }
 
-function ExpandableCard({ title, info, subtitle, deviceId, metric, formatValue }) {
+function ExpandableCard({ title, info, subtitle, deviceId, series, formatValue }) {
   const [expanded, setExpanded] = useState(false)
 
   return (
@@ -483,7 +552,7 @@ function ExpandableCard({ title, info, subtitle, deviceId, metric, formatValue }
       <p style={{ color: 'var(--text-muted)', fontSize: 12, margin: '8px 0 0' }}>
         {expanded ? 'Skjul graf (siste 24t) ▲' : 'Vis graf (siste 24t) ▼'}
       </p>
-      {expanded && <MetricHistoryChart deviceId={deviceId} metric={metric} formatValue={formatValue} />}
+      {expanded && <MetricHistoryChart deviceId={deviceId} series={series} formatValue={formatValue} />}
     </div>
   )
 }
@@ -498,7 +567,7 @@ function PowerServiceCard({ deviceId, title, subtitle }) {
       info={info}
       subtitle={subtitle}
       deviceId={deviceId}
-      metric="watts"
+      series={[{ metric: 'watts', label: title, color: '#2a78d6' }]}
       formatValue={formatWatt}
     />
   )
