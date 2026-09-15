@@ -231,11 +231,15 @@ function UpsServiceCard() {
       info={info}
       subtitle="APC Back-UPS BX950MI."
       deviceId="ups"
-      series={[
-        { metric: 'battery_charge', label: 'Batteri', color: '#2a78d6' },
-        { metric: 'load_percent', label: 'Last', color: '#eb6834' },
+      charts={[
+        {
+          series: [
+            { metric: 'battery_charge', label: 'Batteri', color: '#2a78d6' },
+            { metric: 'load_percent', label: 'Last', color: '#eb6834' },
+          ],
+          formatValue: (v) => `${Math.round(v)}%`,
+        },
       ]}
-      formatValue={(v) => `${Math.round(v)}%`}
     />
   )
 }
@@ -279,8 +283,18 @@ function HomeyServiceCard({ deviceId, title }) {
       info={info}
       subtitle="Homey Pro."
       deviceId={deviceId}
-      series={[{ metric: 'temperature', label: 'Temperatur', color: '#2a78d6' }]}
-      formatValue={(v) => `${v.toFixed(1)}°C`}
+      charts={[
+        {
+          label: 'Temperatur',
+          series: [{ metric: 'temperature', label: 'Temperatur', color: '#2a78d6' }],
+          formatValue: (v) => `${v.toFixed(1)}°C`,
+        },
+        {
+          label: 'Ledig minne',
+          series: [{ metric: 'freemem_percent', label: 'Ledig minne', color: '#2a78d6' }],
+          formatValue: (v) => `${Math.round(v)}%`,
+        },
+      ]}
     />
   )
 }
@@ -525,7 +539,12 @@ function MetricHistoryChart({ deviceId, series, formatValue }) {
   )
 }
 
-function ExpandableCard({ title, info, subtitle, deviceId, series, formatValue }) {
+// charts: [{ label?, series: [{ metric, label, color }], formatValue }]
+// Hver oppføring er en EGEN graf med egen akse — ulike måleenheter (f.eks.
+// °C og %) skal aldri dele akse, se dataviz-skillets "one axis"-regel.
+// Flere serier i samme chart-oppføring er OK når de deler enhet (f.eks.
+// UPS sin batteri% + last%).
+function ExpandableCard({ title, info, subtitle, deviceId, charts }) {
   const [expanded, setExpanded] = useState(false)
 
   return (
@@ -552,7 +571,15 @@ function ExpandableCard({ title, info, subtitle, deviceId, series, formatValue }
       <p style={{ color: 'var(--text-muted)', fontSize: 12, margin: '8px 0 0' }}>
         {expanded ? 'Skjul graf (siste 24t) ▲' : 'Vis graf (siste 24t) ▼'}
       </p>
-      {expanded && <MetricHistoryChart deviceId={deviceId} series={series} formatValue={formatValue} />}
+      {expanded &&
+        charts.map((chart, i) => (
+          <div key={chart.series[0].metric} style={{ marginTop: i > 0 ? 16 : 0 }}>
+            {chart.label && (
+              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{chart.label}</div>
+            )}
+            <MetricHistoryChart deviceId={deviceId} series={chart.series} formatValue={chart.formatValue} />
+          </div>
+        ))}
     </div>
   )
 }
@@ -567,8 +594,7 @@ function PowerServiceCard({ deviceId, title, subtitle }) {
       info={info}
       subtitle={subtitle}
       deviceId={deviceId}
-      series={[{ metric: 'watts', label: title, color: '#2a78d6' }]}
-      formatValue={formatWatt}
+      charts={[{ series: [{ metric: 'watts', label: title, color: '#2a78d6' }], formatValue: formatWatt }]}
     />
   )
 }
