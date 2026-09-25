@@ -599,6 +599,54 @@ function PowerServiceCard({ deviceId, title, subtitle }) {
   )
 }
 
+const COST_STALE_MS = 90 * 60 * 1000
+
+function formatKr(v) {
+  if (v == null) return '—'
+  return `${v.toLocaleString('no-NO', { maximumFractionDigits: 0 })} kr`
+}
+
+function CostStatCard({ deviceId, title, subtitle }) {
+  const { row, loaded } = useDeviceStatus(deviceId)
+
+  const stale = row && Date.now() - new Date(row.updated_at).getTime() > COST_STALE_MS
+  const status = !loaded || !row ? 'warn' : stale ? 'down' : 'ok'
+  const label = !loaded ? 'Laster …' : !row ? 'Ukjent' : stale ? 'Frakoblet' : 'Oppe'
+
+  return (
+    <div style={styles.serviceCard}>
+      <div style={styles.serviceHead}>
+        <span style={styles.serviceTitle}>{title}</span>
+        <span style={styles.statusDot()}>
+          <span style={styles.dot(statusColor[status])} />
+          {label}
+        </span>
+      </div>
+      <p style={{ color: 'var(--text-muted)', margin: '0 0 10px' }}>{subtitle}</p>
+      {row && !stale ? (
+        <div style={{ display: 'flex', gap: 20 }}>
+          <div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>I dag</div>
+            <div style={{ fontSize: 18, fontWeight: 600 }}>{formatKr(row.raw?.today)}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Denne måneden</div>
+            <div style={{ fontSize: 18, fontWeight: 600 }}>{formatKr(row.raw?.month)}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>I år</div>
+            <div style={{ fontSize: 18, fontWeight: 600 }}>{formatKr(row.raw?.year)}</div>
+          </div>
+        </div>
+      ) : (
+        <p style={{ color: 'var(--text-muted)', margin: 0 }}>
+          {stale ? `Ingen oppdatering siden ${new Date(row.updated_at).toLocaleString('no-NO')}.` : 'Ingen data mottatt ennå.'}
+        </p>
+      )}
+    </div>
+  )
+}
+
 export default function App() {
   return (
     <div style={styles.page}>
@@ -640,6 +688,8 @@ export default function App() {
           <HomeyServiceCard deviceId="homey-hytta" title="Homey (@Hytta)" />
           <PowerServiceCard deviceId="home-power-consumption" title="Strømforbruk" subtitle="Puls Nordås." />
           <PowerServiceCard deviceId="home-power-production" title="Solproduksjon" subtitle="Inverter: Solceller." />
+          <CostStatCard deviceId="home-cost" title="Strømkostnad" subtitle="Kostnad for strømforbruk." />
+          <CostStatCard deviceId="home-solar-value" title="Solbidrag" subtitle="Verdi av solproduksjon (spart + solgt)." />
         </div>
       </section>
 

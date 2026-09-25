@@ -51,6 +51,13 @@ POWER_DEVICES = {
     "home-power-production": ("91ecaabe-5d1a-41f9-83c0-c1a362ec45ad", "Solproduksjon (@Home)", "Inverter: Solceller"),
 }
 
+# Kostnads-aggregater fra Homey sin Energi-app (Σpower-enheter), kun for
+# HOME-Homeyen. Gir kr i dag/denne måneden/i år.
+COST_DEVICES = {
+    "home-cost": ("dc634360-a80f-4c64-89c4-293b46199b86", "Strømkostnad (@Home)", "ENERGY_SMARTMETERS_Σpower"),
+    "home-solar-value": ("ed343f4d-8a71-4cbc-b197-6959779faeb7", "Solbidrag (@Home)", "ENERGY_SOLARPANELS_Σpower"),
+}
+
 
 def homey_api_get(homey_id: str, token: str, path: str, timeout: int = 10):
     url = f"https://{homey_id}.connect.athom.com{path}"
@@ -102,6 +109,20 @@ def extract_power(device: dict):
     return {
         "watts": cap_value("measure_power"),
         "kwh_today": cap_value("day_energy_capability"),
+    }
+
+
+def extract_cost(device: dict):
+    caps = device.get("capabilitiesObj", {})
+
+    def cap_value(cap_id):
+        entry = caps.get(cap_id)
+        return entry.get("value") if entry else None
+
+    return {
+        "today": cap_value("meter_money_this_day"),
+        "month": cap_value("meter_money_this_month"),
+        "year": cap_value("meter_money_this_year"),
     }
 
 
@@ -174,6 +195,7 @@ def poll_one(device_id: str, env_prefix: str, label: str) -> bool:
 
         if env_prefix == "HOME":
             poll_power_devices(devices)
+            poll_cost_devices(devices)
 
         return True
     except Exception as exc:
@@ -192,6 +214,21 @@ def poll_power_devices(devices: dict):
             upsert_status(power_id, label, power, online=True)
             insert_metrics(power_id, {"watts": power["watts"]})
             print(f"OK: {label} -> watt={power['watts']} kwh_today={power['kwh_today']}")
+        except Exception as exc:
+            print(f"FEIL ({label}): {exc}", file=sys.stderr)
+
+
+def poll_cost_devices(devices: dict):
+    for cost_id, (homey_device_id, label, device_name) in COST_DEVICES.items():
+        device = devices.get(homey_device_id)
+        if not device:
+            print(f"FEIL ({label}): fant ikke device-id {homey_device_id} ({device_name})", file=sys.stderr)
+            continue
+        try:
+            cost = extract_cost(device)
+            upsert_status(cost_id, label, cost, online=True)
+            insert_metrics(cost_id, {"cost_today": cost["today"]})
+            print(f"OK: {label} -> i dag={cost['today']} kr, denne måneden={cost['month']} kr, i år={cost['year']} kr")
         except Exception as exc:
             print(f"FEIL ({label}): {exc}", file=sys.stderr)
 
