@@ -689,7 +689,11 @@ export default function App() {
           <PowerServiceCard deviceId="home-power-consumption" title="Strømforbruk" subtitle="Puls Nordås." />
           <CostStatCard deviceId="home-cost" title="Strømkostnad" subtitle="Kostnad for strømforbruk." />
           <PowerServiceCard deviceId="home-power-production" title="Solproduksjon" subtitle="Inverter: Solceller." />
-          <CostStatCard deviceId="home-solar-value" title="Solbidrag" subtitle="Verdi av solproduksjon (spart + solgt)." />
+          <CostStatCard
+            deviceId="home-solar-value"
+            title="Solbidrag"
+            subtitle={<>Verdi av solproduksjon<br />(spart + solgt).</>}
+          />
         </div>
       </section>
 
