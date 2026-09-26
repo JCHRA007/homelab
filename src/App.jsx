@@ -624,18 +624,18 @@ function CostStatCard({ deviceId, title, subtitle }) {
       </div>
       <p style={{ color: 'var(--text-muted)', margin: '0 0 10px' }}>{subtitle}</p>
       {row && !stale ? (
-        <div style={{ display: 'flex', gap: 20 }}>
-          <div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>I dag</div>
-            <div style={{ fontSize: 18, fontWeight: 600 }}>{formatKr(row.raw?.today)}</div>
+        <div style={{ display: 'flex', gap: 16 }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>I dag</div>
+            <div style={{ fontSize: 17, fontWeight: 600, whiteSpace: 'nowrap' }}>{formatKr(row.raw?.today)}</div>
           </div>
-          <div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Denne måneden</div>
-            <div style={{ fontSize: 18, fontWeight: 600 }}>{formatKr(row.raw?.month)}</div>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>Måned</div>
+            <div style={{ fontSize: 17, fontWeight: 600, whiteSpace: 'nowrap' }}>{formatKr(row.raw?.month)}</div>
           </div>
-          <div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>I år</div>
-            <div style={{ fontSize: 18, fontWeight: 600 }}>{formatKr(row.raw?.year)}</div>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>I år</div>
+            <div style={{ fontSize: 17, fontWeight: 600, whiteSpace: 'nowrap' }}>{formatKr(row.raw?.year)}</div>
           </div>
         </div>
       ) : (
